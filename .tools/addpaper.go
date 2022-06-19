@@ -13,6 +13,8 @@ import (
 	"strings"
 )
 
+const token = "b6393d27-9473-4910-b630-82b1baee20d6"
+
 type Paper struct {
 	URL      string
 	Title    string
@@ -20,9 +22,20 @@ type Paper struct {
 	Filename string
 }
 
+type Space struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Cards []Card `json:"cards"`
+}
+
 type Card struct {
-	Name    string `json: "name"`
-	SpaceId string `json: "spaceId"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	SpaceId         string `json:"spaceId"`
+	BackgroundColor string `json:"backgroundColor"`
+	X               int    `json:"x"`
+	Y               int    `json:"y"`
+	Z               int    `json:"z"`
 }
 
 func parseInput() Paper {
@@ -85,24 +98,70 @@ func commitPaper(paper Paper) error {
 	return cmd.Run()
 }
 
-func createCard(paper Paper) Card {
-	return Card{
-		Name:    fmt.Sprintf("[%s](https://raw.githubusercontent.com/maxtaylordavies/papers/master/%s)", paper.Title, paper.Filename),
-		SpaceId: "papers-4oKyeUTNlswo5j4hw1sQP",
+func getSpace(id string) (Space, error) {
+	var space Space
+
+	// create GET request
+	req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.kinopio.club/space/%s", id), nil)
+	req.Header.Set("Authorization", token)
+
+	// dispatch request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return space, err
 	}
+
+	// attempt to decode the response body into a Space struct
+	err = json.NewDecoder(resp.Body).Decode(&space)
+	return space, err
+}
+
+func createCard(paper Paper) (Card, error) {
+	var card Card
+
+	spaceId := "4oKyeUTNlswo5j4hw1sQP"
+	space, err := getSpace(spaceId)
+	if err != nil {
+		return card, err
+	}
+
+	category := strings.ToLower(strings.ReplaceAll(paper.Category, " ", ""))
+	var parent Card
+	for _, c := range space.Cards {
+		name := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(c.Name, "#", ""), " ", ""))
+		if name == category {
+			log.Println(c.Name)
+			parent = c
+			break
+		}
+	}
+
+	card = Card{
+		Name:    fmt.Sprintf("[%s](https://raw.githubusercontent.com/maxtaylordavies/papers/master/%s)", paper.Title, paper.Filename),
+		SpaceId: spaceId,
+		X:       parent.X + 10,
+		Y:       parent.Y + 10,
+		Z:       parent.Z,
+	}
+	return card, nil
 }
 
 func addToKinopio(paper Paper) error {
-	token := "b6393d27-9473-4910-b630-82b1baee20d6"
+	// create card
+	card, err := createCard(paper)
+	if err != nil {
+		return err
+	}
 
 	// encode payload
 	buffer := new(bytes.Buffer)
-	json.NewEncoder(buffer).Encode(createCard(paper))
+	json.NewEncoder(buffer).Encode(card)
 
 	// create POST request
-	req, err := http.NewRequest("POST", "https://api.kinopio.club/card", buffer)
+	req, _ := http.NewRequest("POST", "https://api.kinopio.club/card", buffer)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	req.Header.Set("Authorization", token)
 
 	// dispatch request
 	client := &http.Client{}
