@@ -42,7 +42,7 @@ func parseInput() Paper {
 
 func downloadPaper(paper Paper) error {
 	// create output file
-	filename := strings.Join(strings.Split(strings.ToLower(paper.Title), " "), "-")
+	filename := strings.Join(strings.Split(strings.ToLower(strings.ReplaceAll(paper.Title, ",", "")), " "), "-")
 	out, err := os.Create(fmt.Sprintf("/Users/max/Documents/Papers/%s", filename))
 	if err != nil {
 		return err
