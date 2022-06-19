@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +17,12 @@ type Paper struct {
 	URL      string
 	Title    string
 	Category string
+	Filename string
+}
+
+type Card struct {
+	Name    string `json: "name"`
+	SpaceId string `json: "spaceId"`
 }
 
 func parseInput() Paper {
@@ -33,17 +41,19 @@ func parseInput() Paper {
 		category = "Miscellaneous\n"
 	}
 
-	return Paper{
+	paper := Paper{
 		URL:      strings.TrimSuffix(url, "\n"),
 		Title:    strings.TrimSuffix(title, "\n"),
 		Category: strings.TrimSuffix(category, "\n"),
 	}
+	paper.Filename = strings.Join(strings.Split(strings.ToLower(strings.ReplaceAll(paper.Title, ",", "")), " "), "-")
+
+	return paper
 }
 
 func downloadPaper(paper Paper) error {
 	// create output file
-	filename := strings.Join(strings.Split(strings.ToLower(strings.ReplaceAll(paper.Title, ",", "")), " "), "-")
-	out, err := os.Create(fmt.Sprintf("/Users/max/Documents/Papers/%s", filename))
+	out, err := os.Create(fmt.Sprintf("/Users/max/Documents/Papers/%s", paper.Filename))
 	if err != nil {
 		return err
 	}
@@ -75,8 +85,30 @@ func commitPaper(paper Paper) error {
 	return cmd.Run()
 }
 
+func createCard(paper Paper) Card {
+	return Card{
+		Name:    fmt.Sprintf("[%s](https://raw.githubusercontent.com/maxtaylordavies/papers/master/%s)", paper.Title, paper.Filename),
+		SpaceId: "papers-4oKyeUTNlswo5j4hw1sQP",
+	}
+}
+
 func addToKinopio(paper Paper) error {
-	return nil
+	token := "b6393d27-9473-4910-b630-82b1baee20d6"
+
+	// encode payload
+	buffer := new(bytes.Buffer)
+	json.NewEncoder(buffer).Encode(createCard(paper))
+
+	// create POST request
+	req, err := http.NewRequest("POST", "https://api.kinopio.club/card", buffer)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	// dispatch request
+	client := &http.Client{}
+	_, err = client.Do(req)
+
+	return err
 }
 
 func main() {
