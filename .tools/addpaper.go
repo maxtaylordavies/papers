@@ -46,7 +46,7 @@ func parseInput() Paper {
 		Title:    strings.TrimSuffix(title, "\n"),
 		Category: strings.TrimSuffix(category, "\n"),
 	}
-	paper.Filename = strings.Join(strings.Split(strings.ToLower(strings.ReplaceAll(paper.Title, ",", "")), " "), "-")
+	paper.Filename = strings.Join(strings.Split(strings.ToLower(strings.ReplaceAll(paper.Title, ",", "")), " "), "-") + ".pdf"
 
 	return paper
 }
