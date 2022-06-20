@@ -207,7 +207,7 @@ func addToKinopio(paper Paper) error {
 	json.NewEncoder(buffer).Encode(connection)
 
 	// create POST request for connection
-	req, _ = http.NewRequest("POST", "https://api.kinopio.club/card", buffer)
+	req, _ = http.NewRequest("POST", "https://api.kinopio.club/connection", buffer)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", token)
 
