@@ -2,8 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -11,9 +9,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	kinopigo "github.com/maxtaylordavies/kinopigo"
 )
 
-const token = "b6393d27-9473-4910-b630-82b1baee20d6"
 const spaceID = "4oKyeUTNlswo5j4hw1sQP"
 
 type Paper struct {
@@ -21,31 +20,6 @@ type Paper struct {
 	Title    string
 	Category string
 	Filename string
-}
-
-type Space struct {
-	ID          string       `json:"id"`
-	Name        string       `json:"name"`
-	Cards       []Card       `json:"cards"`
-	Connections []Connection `json:"connections"`
-}
-
-type Card struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	SpaceID         string `json:"spaceId"`
-	ParentID        string `json:"parentId"`
-	BackgroundColor string `json:"backgroundColor"`
-	X               int    `json:"x"`
-	Y               int    `json:"y"`
-	Z               int    `json:"z"`
-}
-
-type Connection struct {
-	SpaceID          string `json:"spaceId"`
-	ConnectionTypeID string `json:"connectionTypeId"`
-	StartCardID      string `json:"startCardId"`
-	EndCardID        string `json:"endCardId"`
 }
 
 func parseInput() Paper {
@@ -108,28 +82,28 @@ func commitPaper(paper Paper) error {
 	return cmd.Run()
 }
 
-func getSpace() (Space, error) {
-	var space Space
+// func getSpace() (Space, error) {
+// 	var space Space
 
-	// create GET request
-	req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.kinopio.club/space/%s", spaceID), nil)
-	req.Header.Set("Authorization", token)
+// 	// create GET request
+// 	req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.kinopio.club/space/%s", spaceID), nil)
+// 	req.Header.Set("Authorization", token)
 
-	// dispatch request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return space, err
-	}
+// 	// dispatch request
+// 	client := &http.Client{}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return space, err
+// 	}
 
-	// attempt to decode the response body into a Space struct
-	err = json.NewDecoder(resp.Body).Decode(&space)
-	return space, err
-}
+// 	// attempt to decode the response body into a Space struct
+// 	err = json.NewDecoder(resp.Body).Decode(&space)
+// 	return space, err
+// }
 
-func createCard(paper Paper, space Space) Card {
+func createCard(paper Paper, space kinopigo.Space) kinopigo.Card {
 	category := strings.ToLower(strings.ReplaceAll(paper.Category, " ", ""))
-	var parent Card
+	var parent kinopigo.Card
 	for _, c := range space.Cards {
 		name := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(c.Name, "#", ""), " ", ""))
 		if name == category {
@@ -139,7 +113,7 @@ func createCard(paper Paper, space Space) Card {
 		}
 	}
 
-	return Card{
+	return kinopigo.Card{
 		Name:     fmt.Sprintf("[%s](https://raw.githubusercontent.com/maxtaylordavies/papers/master/%s)", paper.Title, paper.Filename),
 		SpaceID:  spaceID,
 		ParentID: parent.ID,
@@ -149,7 +123,7 @@ func createCard(paper Paper, space Space) Card {
 	}
 }
 
-func createConnection(parentID string, childID string, space Space) Connection {
+func createConnection(parentID string, childID string, space kinopigo.Space) kinopigo.Connection {
 	// determine what ConnectionTypeID we should use
 	var ctid string
 	for _, conn := range space.Connections {
@@ -160,7 +134,7 @@ func createConnection(parentID string, childID string, space Space) Connection {
 	}
 
 	// create an instance of Connection
-	return Connection{
+	return kinopigo.Connection{
 		SpaceID:          space.ID,
 		ConnectionTypeID: ctid,
 		StartCardID:      parentID,
@@ -169,51 +143,27 @@ func createConnection(parentID string, childID string, space Space) Connection {
 }
 
 func addToKinopio(paper Paper) error {
-	space, err := getSpace()
+	// create instance of Kinopigo client
+	client, err := kinopigo.NewKinopigoClient()
+	if err != nil {
+		return err
+	}
+
+	space, err := client.GetSpace(spaceID)
 	if err != nil {
 		return err
 	}
 
 	// create card
 	card := createCard(paper, space)
-
-	// encode card payload
-	buffer := new(bytes.Buffer)
-	json.NewEncoder(buffer).Encode(card)
-
-	// create POST request for card
-	req, _ := http.NewRequest("POST", "https://api.kinopio.club/card", buffer)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", token)
-
-	// dispatch request for card
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	// read response into card variable so we can get the ID
-	err = json.NewDecoder(resp.Body).Decode(&card)
+	card, err = client.CreateCard(card)
 	if err != nil {
 		return err
 	}
 
 	// create connection
 	connection := createConnection(card.ParentID, card.ID, space)
-
-	// encode connection payload
-	buffer = new(bytes.Buffer)
-	json.NewEncoder(buffer).Encode(connection)
-
-	// create POST request for connection
-	req, _ = http.NewRequest("POST", "https://api.kinopio.club/connection", buffer)
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", token)
-
-	// dispatch request for connection
-	client = &http.Client{}
-	_, err = client.Do(req)
+	connection, err = client.CreateConnection(connection)
 	return err
 }
 
