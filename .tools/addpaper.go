@@ -14,6 +14,7 @@ import (
 )
 
 const token = "b6393d27-9473-4910-b630-82b1baee20d6"
+const spaceID = "4oKyeUTNlswo5j4hw1sQP"
 
 type Paper struct {
 	URL      string
@@ -23,19 +24,28 @@ type Paper struct {
 }
 
 type Space struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Cards []Card `json:"cards"`
+	ID          string       `json:"id"`
+	Name        string       `json:"name"`
+	Cards       []Card       `json:"cards"`
+	Connections []Connection `json:"connections"`
 }
 
 type Card struct {
 	ID              string `json:"id"`
 	Name            string `json:"name"`
-	SpaceId         string `json:"spaceId"`
+	SpaceID         string `json:"spaceId"`
+	ParentID        string `json:"parentId"`
 	BackgroundColor string `json:"backgroundColor"`
 	X               int    `json:"x"`
 	Y               int    `json:"y"`
 	Z               int    `json:"z"`
+}
+
+type Connection struct {
+	SpaceID          string `json:"spaceId"`
+	ConnectionTypeID string `json:"connectionTypeId"`
+	StartCardID      string `json:"startCardId"`
+	EndCardID        string `json:"endCardId"`
 }
 
 func parseInput() Paper {
@@ -98,11 +108,11 @@ func commitPaper(paper Paper) error {
 	return cmd.Run()
 }
 
-func getSpace(id string) (Space, error) {
+func getSpace() (Space, error) {
 	var space Space
 
 	// create GET request
-	req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.kinopio.club/space/%s", id), nil)
+	req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.kinopio.club/space/%s", spaceID), nil)
 	req.Header.Set("Authorization", token)
 
 	// dispatch request
@@ -117,15 +127,7 @@ func getSpace(id string) (Space, error) {
 	return space, err
 }
 
-func createCard(paper Paper) (Card, error) {
-	var card Card
-
-	spaceId := "4oKyeUTNlswo5j4hw1sQP"
-	space, err := getSpace(spaceId)
-	if err != nil {
-		return card, err
-	}
-
+func createCard(paper Paper, space Space) Card {
 	category := strings.ToLower(strings.ReplaceAll(paper.Category, " ", ""))
 	var parent Card
 	for _, c := range space.Cards {
@@ -137,36 +139,81 @@ func createCard(paper Paper) (Card, error) {
 		}
 	}
 
-	card = Card{
-		Name:    fmt.Sprintf("[%s](https://raw.githubusercontent.com/maxtaylordavies/papers/master/%s)", paper.Title, paper.Filename),
-		SpaceId: spaceId,
-		X:       parent.X + 10,
-		Y:       parent.Y + 10,
-		Z:       parent.Z,
+	return Card{
+		Name:     fmt.Sprintf("[%s](https://raw.githubusercontent.com/maxtaylordavies/papers/master/%s)", paper.Title, paper.Filename),
+		SpaceID:  spaceID,
+		ParentID: parent.ID,
+		X:        parent.X + 10,
+		Y:        parent.Y + 10,
+		Z:        parent.Z,
 	}
-	return card, nil
+}
+
+func createConnection(parentID string, childID string, space Space) Connection {
+	// determine what ConnectionTypeID we should use
+	var ctid string
+	for _, conn := range space.Connections {
+		if conn.StartCardID == parentID {
+			ctid = conn.ConnectionTypeID
+			break
+		}
+	}
+
+	// create an instance of Connection
+	return Connection{
+		SpaceID:          space.ID,
+		ConnectionTypeID: ctid,
+		StartCardID:      parentID,
+		EndCardID:        childID,
+	}
 }
 
 func addToKinopio(paper Paper) error {
-	// create card
-	card, err := createCard(paper)
+	space, err := getSpace()
 	if err != nil {
 		return err
 	}
 
-	// encode payload
+	// create card
+	card := createCard(paper, space)
+
+	// encode card payload
 	buffer := new(bytes.Buffer)
 	json.NewEncoder(buffer).Encode(card)
 
-	// create POST request
+	// create POST request for card
 	req, _ := http.NewRequest("POST", "https://api.kinopio.club/card", buffer)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", token)
 
-	// dispatch request
+	// dispatch request for card
 	client := &http.Client{}
-	_, err = client.Do(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
 
+	// read response into card variable so we can get the ID
+	err = json.NewDecoder(resp.Body).Decode(&card)
+	if err != nil {
+		return err
+	}
+
+	// create connection
+	connection := createConnection(card.ParentID, card.ID, space)
+
+	// encode connection payload
+	buffer = new(bytes.Buffer)
+	json.NewEncoder(buffer).Encode(connection)
+
+	// create POST request for connection
+	req, _ = http.NewRequest("POST", "https://api.kinopio.club/card", buffer)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", token)
+
+	// dispatch request for connection
+	client = &http.Client{}
+	_, err = client.Do(req)
 	return err
 }
 
