@@ -33,7 +33,6 @@ func parseInput() Paper {
 
 	fmt.Print("Enter category (optional): ")
 	category, _ := reader.ReadString('\n')
-	fmt.Print(category)
 	if category == "\n" {
 		category = "Miscellaneous\n"
 	}
