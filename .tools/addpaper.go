@@ -81,32 +81,12 @@ func commitPaper(paper Paper) error {
 	return cmd.Run()
 }
 
-// func getSpace() (Space, error) {
-// 	var space Space
-
-// 	// create GET request
-// 	req, _ := http.NewRequest("GET", fmt.Sprintf("https://api.kinopio.club/space/%s", spaceID), nil)
-// 	req.Header.Set("Authorization", token)
-
-// 	// dispatch request
-// 	client := &http.Client{}
-// 	resp, err := client.Do(req)
-// 	if err != nil {
-// 		return space, err
-// 	}
-
-// 	// attempt to decode the response body into a Space struct
-// 	err = json.NewDecoder(resp.Body).Decode(&space)
-// 	return space, err
-// }
-
 func createCard(paper Paper, space kinopigo.Space) kinopigo.Card {
 	category := strings.ToLower(strings.ReplaceAll(paper.Category, " ", ""))
 	var parent kinopigo.Card
 	for _, c := range space.Cards {
 		name := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(c.Name, "#", ""), " ", ""))
 		if name == category {
-			log.Println(c.Name)
 			parent = c
 			break
 		}
@@ -171,20 +151,20 @@ func main() {
 	paper := parseInput()
 
 	// download the pdf into Documents/Papers
-	err := downloadPaper(paper)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// err := downloadPaper(paper)
+	// if err != nil {
+	// 	log.Fatalf("Error downloading paper: %s\n", err)
+	// }
 
 	// commit change to git + push to github
-	err = commitPaper(paper)
+	err := commitPaper(paper)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error committing paper: %s\n", err)
 	}
 
 	// add paper to kinopio
 	err = addToKinopio(paper)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error adding to kinopio: %s\n", err)
 	}
 }
