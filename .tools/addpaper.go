@@ -151,13 +151,13 @@ func main() {
 	paper := parseInput()
 
 	// download the pdf into Documents/Papers
-	// err := downloadPaper(paper)
-	// if err != nil {
-	// 	log.Fatalf("Error downloading paper: %s\n", err)
-	// }
+	err := downloadPaper(paper)
+	if err != nil {
+		log.Fatalf("Error downloading paper: %s\n", err)
+	}
 
 	// commit change to git + push to github
-	err := commitPaper(paper)
+	err = commitPaper(paper)
 	if err != nil {
 		log.Fatalf("Error committing paper: %s\n", err)
 	}
