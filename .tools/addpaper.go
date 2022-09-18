@@ -34,7 +34,7 @@ func parseInput() Paper {
 	fmt.Print("Enter category (optional): ")
 	category, _ := reader.ReadString('\n')
 	if category == "\n" {
-		category = "Miscellaneous\n"
+		category = "Current pile\n"
 	}
 
 	paper := Paper{
@@ -147,6 +147,8 @@ func addToKinopio(paper Paper) error {
 }
 
 func main() {
+	fmt.Println("hello")
+
 	// get required info from stdin and create a Paper object
 	paper := parseInput()
 
